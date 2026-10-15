@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { KIND_LABEL, WEEKDAYS, type Dish, type DishKind, type Weekday } from '../data/menu'
+import { KIND_LABEL, type Dish, type DishKind } from '../data/menu'
 import type { DishInput } from '../types/menu'
 
 type Props = {
@@ -12,18 +12,20 @@ type Props = {
 const EMPTY: DishInput = {
   title: '',
   kind: 'main',
-  day: 'mon',
   calories: 300,
+  protein: 20,
+  fat: 10,
+  carbs: 30,
   allergens: [],
-  priceRub: 150,
 }
 
 export function DishForm({ busy, editing, onSubmit, onCancelEdit }: Props) {
   const [title, setTitle] = useState(editing?.title ?? EMPTY.title)
   const [kind, setKind] = useState<DishKind>(editing?.kind ?? EMPTY.kind)
-  const [day, setDay] = useState<Weekday>(editing?.day ?? EMPTY.day)
   const [calories, setCalories] = useState(editing?.calories ?? EMPTY.calories)
-  const [priceRub, setPriceRub] = useState(editing?.priceRub ?? EMPTY.priceRub)
+  const [protein, setProtein] = useState(editing?.protein ?? EMPTY.protein)
+  const [fat, setFat] = useState(editing?.fat ?? EMPTY.fat)
+  const [carbs, setCarbs] = useState(editing?.carbs ?? EMPTY.carbs)
   const [allergensText, setAllergensText] = useState(
     (editing?.allergens ?? []).join(', '),
   )
@@ -34,9 +36,10 @@ export function DishForm({ busy, editing, onSubmit, onCancelEdit }: Props) {
       id: editing?.id,
       title,
       kind,
-      day,
       calories: Number(calories),
-      priceRub: Number(priceRub),
+      protein: Number(protein),
+      fat: Number(fat),
+      carbs: Number(carbs),
       allergens: allergensText
         .split(',')
         .map((a) => a.trim())
@@ -46,7 +49,9 @@ export function DishForm({ busy, editing, onSubmit, onCancelEdit }: Props) {
       setTitle('')
       setAllergensText('')
       setCalories(300)
-      setPriceRub(150)
+      setProtein(20)
+      setFat(10)
+      setCarbs(30)
     }
   }
 
@@ -57,8 +62,11 @@ export function DishForm({ busy, editing, onSubmit, onCancelEdit }: Props) {
       onSubmit={(e) => void handleSubmit(e)}
     >
       <h2 className="sm:col-span-2 text-sm font-semibold uppercase tracking-wide text-[var(--mb-forest)]">
-        {editing ? `Редактирование: ${editing.title}` : 'Добавить блюдо (Create)'}
+        {editing ? `Редактирование: ${editing.title}` : 'Каталог — добавить блюдо'}
       </h2>
+      <p className="sm:col-span-2 -mt-1 text-xs text-slate-500">
+        Блюдо добавляется в общий каталог и доступно на любую дату плана.
+      </p>
 
       <label className="flex flex-col gap-1 text-sm sm:col-span-2">
         <span className="font-semibold">Название</span>
@@ -74,7 +82,7 @@ export function DishForm({ busy, editing, onSubmit, onCancelEdit }: Props) {
       </label>
 
       <label className="flex flex-col gap-1 text-sm">
-        <span className="font-semibold">Тип</span>
+        <span className="font-semibold">Тип / категория</span>
         <select
           className="rounded-xl border border-[var(--mb-line)] px-3 py-2"
           value={kind}
@@ -91,23 +99,6 @@ export function DishForm({ busy, editing, onSubmit, onCancelEdit }: Props) {
       </label>
 
       <label className="flex flex-col gap-1 text-sm">
-        <span className="font-semibold">День</span>
-        <select
-          className="rounded-xl border border-[var(--mb-line)] px-3 py-2"
-          value={day}
-          onChange={(e) => setDay(e.target.value as Weekday)}
-          disabled={busy}
-          aria-label="День нового блюда"
-        >
-          {WEEKDAYS.map((w) => (
-            <option key={w.id} value={w.id}>
-              {w.label}
-            </option>
-          ))}
-        </select>
-      </label>
-
-      <label className="flex flex-col gap-1 text-sm">
         <span className="font-semibold">Ккал</span>
         <input
           type="number"
@@ -117,19 +108,52 @@ export function DishForm({ busy, editing, onSubmit, onCancelEdit }: Props) {
           onChange={(e) => setCalories(Number(e.target.value))}
           disabled={busy}
           aria-label="Калории"
+          data-testid="dish-calories-input"
         />
       </label>
 
       <label className="flex flex-col gap-1 text-sm">
-        <span className="font-semibold">Цена, ₽</span>
+        <span className="font-semibold">Белки, г</span>
         <input
           type="number"
           min={0}
+          step={0.1}
           className="rounded-xl border border-[var(--mb-line)] px-3 py-2"
-          value={priceRub}
-          onChange={(e) => setPriceRub(Number(e.target.value))}
+          value={protein}
+          onChange={(e) => setProtein(Number(e.target.value))}
           disabled={busy}
-          aria-label="Цена"
+          aria-label="Белки"
+          data-testid="dish-protein-input"
+        />
+      </label>
+
+      <label className="flex flex-col gap-1 text-sm">
+        <span className="font-semibold">Жиры, г</span>
+        <input
+          type="number"
+          min={0}
+          step={0.1}
+          className="rounded-xl border border-[var(--mb-line)] px-3 py-2"
+          value={fat}
+          onChange={(e) => setFat(Number(e.target.value))}
+          disabled={busy}
+          aria-label="Жиры"
+          data-testid="dish-fat-input"
+        />
+      </label>
+
+      <label className="flex flex-col gap-1 text-sm">
+        <span className="font-semibold">Углеводы, г</span>
+        <input
+          type="number"
+          min={0}
+          step={0.1}
+          className="rounded-xl border border-[var(--mb-line)] px-3 py-2"
+          value={carbs}
+          onChange={(e) => setCarbs(Number(e.target.value))}
+          disabled={busy}
+          aria-label="Углеводы"
+          data-testid="dish-carbs-input"
         />
       </label>
 

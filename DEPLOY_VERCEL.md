@@ -27,8 +27,8 @@ GitHub: https://github.com/sukhanovaKL/MenuBoard
 2. Supabase → **Authentication** → **URL Configuration**:
    - **Site URL** = production URL
    - **Redirect URLs** = production + `http://localhost:5173`
-3. Убедитесь, что выполнена миграция [`supabase/migrations/001_init.sql`](./supabase/migrations/001_init.sql).
-4. Проверьте: регистрация / вход, список блюд, Create/Update/Delete, «Возьму».
+3. Убедитесь, что выполнены миграции `001_init.sql` **и** [`002_meal_planner.sql`](./supabase/migrations/002_meal_planner.sql).
+4. Проверьте: регистрация / вход, каталог CRUD, календарь, «В план на дату», панель «Выбранные позиции» (КБЖУ).
 
 ## Локально
 

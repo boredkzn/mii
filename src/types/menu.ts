@@ -1,19 +1,22 @@
-import type { Dish, DishKind, Weekday } from '../data/menu'
+import type { Dish, DishKind, MealSlot, PlanEntry } from '../data/menu'
 
 export type DishRow = {
   id: string
   title: string
   kind: DishKind
-  day: Weekday
   calories: number
+  protein: number
+  fat: number
+  carbs: number
   allergens: string[] | null
-  price_rub: number
 }
 
-export type MenuPickRow = {
+export type PlanEntryRow = {
   id: string
   dish_id: string
   user_id: string
+  plan_date: string
+  meal_slot: MealSlot | null
   created_at: string
 }
 
@@ -21,10 +24,11 @@ export type DishInput = {
   id?: string
   title: string
   kind: DishKind
-  day: Weekday
   calories: number
+  protein: number
+  fat: number
+  carbs: number
   allergens: string[]
-  priceRub: number
 }
 
 export function rowToDish(row: DishRow): Dish {
@@ -32,21 +36,32 @@ export function rowToDish(row: DishRow): Dish {
     id: row.id,
     title: row.title,
     kind: row.kind,
-    day: row.day,
     calories: row.calories,
+    protein: row.protein,
+    fat: row.fat,
+    carbs: row.carbs,
     allergens: row.allergens ?? [],
-    priceRub: row.price_rub,
   }
 }
 
-export function dishToRow(dish: Dish): Omit<DishRow, never> {
+export function dishToRow(dish: Dish): DishRow {
   return {
     id: dish.id,
     title: dish.title,
     kind: dish.kind,
-    day: dish.day,
     calories: dish.calories,
+    protein: dish.protein,
+    fat: dish.fat,
+    carbs: dish.carbs,
     allergens: dish.allergens,
-    price_rub: dish.priceRub,
+  }
+}
+
+export function rowToPlanEntry(row: PlanEntryRow): PlanEntry {
+  return {
+    id: row.id,
+    dishId: row.dish_id,
+    planDate: row.plan_date,
+    mealSlot: row.meal_slot,
   }
 }

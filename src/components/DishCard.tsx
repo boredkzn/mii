@@ -2,43 +2,43 @@ import { KIND_LABEL, type Dish } from '../data/menu'
 
 type Props = {
   dish: Dish
-  picked: boolean
+  planned: boolean
   busy: boolean
   canManage: boolean
-  onToggle: (id: string) => void
+  onTogglePlan: (id: string) => void
   onEdit: (dish: Dish) => void
   onDelete: (id: string) => void
 }
 
 export function DishCard({
   dish,
-  picked,
+  planned,
   busy,
   canManage,
-  onToggle,
+  onTogglePlan,
   onEdit,
   onDelete,
 }: Props) {
   return (
     <article
       className={`flex flex-col gap-3 rounded-2xl border p-4 transition ${
-        picked
+        planned
           ? 'border-[var(--mb-clay)] bg-[#fff1e6]'
           : 'border-[var(--mb-line)] bg-white/90'
       }`}
       data-testid={`dish-${dish.id}`}
     >
-      <div className="flex items-start justify-between gap-3">
-        <div>
-          <p className="text-xs uppercase tracking-wide text-[var(--mb-leaf)]">
-            {KIND_LABEL[dish.kind]}
-          </p>
-          <h3 className="text-xl font-semibold text-[var(--mb-forest)]">{dish.title}</h3>
-        </div>
-        <p className="text-lg font-bold text-[var(--mb-clay)]">{dish.priceRub} ₽</p>
+      <div>
+        <p className="text-xs uppercase tracking-wide text-[var(--mb-leaf)]">
+          {KIND_LABEL[dish.kind]}
+        </p>
+        <h3 className="text-xl font-semibold text-[var(--mb-forest)]">{dish.title}</h3>
       </div>
 
-      <p className="text-sm text-slate-600">{dish.calories} ккал</p>
+      <p className="text-sm text-slate-600" data-testid={`dish-macros-${dish.id}`}>
+        <strong>{dish.calories}</strong> ккал · Б {dish.protein} · Ж {dish.fat} · У{' '}
+        {dish.carbs}
+      </p>
 
       {dish.allergens.length > 0 ? (
         <p className="text-xs text-amber-800">
@@ -52,14 +52,15 @@ export function DishCard({
         <button
           type="button"
           className={`rounded-xl px-4 py-2 text-sm font-semibold transition disabled:opacity-50 ${
-            picked
+            planned
               ? 'bg-[var(--mb-clay)] text-white'
               : 'bg-[var(--mb-forest)] text-[var(--mb-cream)]'
           }`}
-          onClick={() => onToggle(dish.id)}
+          onClick={() => onTogglePlan(dish.id)}
           disabled={busy}
+          data-testid={`toggle-plan-${dish.id}`}
         >
-          {picked ? 'Убрать из выбора' : 'Возьму'}
+          {planned ? 'Убрать из плана' : 'В план на дату'}
         </button>
         {canManage && (
           <>

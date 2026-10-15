@@ -10,59 +10,80 @@ vi.mock('./lib/supabase', () => ({
   getSupabase: () => null,
 }))
 
-describe('App MenuBoard', () => {
+describe('App MenuBoard — планировщик еды', () => {
   beforeEach(() => {
     resetDemoMenu(MENU, [])
   })
 
-  it('отображает бренд, demo-баннер и блюда понедельника', async () => {
+  it('отображает бренд планировщика, demo-баннер и каталог', async () => {
     render(<App />)
     expect(screen.getByText('MenuBoard')).toBeInTheDocument()
+    expect(screen.getByText(/Планировщик еды · Суханова/i)).toBeInTheDocument()
     expect(await screen.findByTestId('demo-mode-banner')).toBeInTheDocument()
-    expect(await screen.findByTestId('dish-d-mon-soup')).toBeInTheDocument()
+    expect(await screen.findByTestId('dish-d-borscht')).toBeInTheDocument()
     expect(screen.getByTestId('data-mode')).toHaveTextContent('demo')
+    expect(screen.queryByText(/Зелёный угол/i)).not.toBeInTheDocument()
   })
 
-  it('переключает день на вторник', async () => {
+  it('меняет дату плана в календаре', async () => {
     const user = userEvent.setup()
     render(<App />)
-    await screen.findByTestId('dish-d-mon-soup')
-    await user.click(screen.getByRole('button', { name: 'Вт' }))
-    expect(screen.getByTestId('dish-d-tue-soup')).toBeInTheDocument()
-    expect(screen.queryByTestId('dish-d-mon-soup')).not.toBeInTheDocument()
+    await screen.findByTestId('plan-date-input')
+    const input = screen.getByTestId('plan-date-input')
+    await user.clear(input)
+    await user.type(input, '2026-10-20')
+    expect(input).toHaveValue('2026-10-20')
   })
 
-  it('отмечает блюдо и обновляет итог', async () => {
+  it('добавляет блюдо в план и показывает КБЖУ', async () => {
     const user = userEvent.setup()
     render(<App />)
-    await screen.findByTestId('dish-d-mon-soup')
-    await user.click(screen.getByTestId('dish-d-mon-soup').querySelector('button')!)
+    await screen.findByTestId('dish-d-borscht')
+    await user.click(screen.getByTestId('toggle-plan-d-borscht'))
     await waitFor(() => {
-      expect(screen.getByRole('status')).toHaveTextContent('Выбор обновлён')
+      expect(screen.getByRole('status')).toHaveTextContent('План обновлён')
     })
-    expect(screen.getByTestId('pick-summary')).toHaveTextContent('1')
+    expect(screen.getByTestId('selected-panel')).toBeInTheDocument()
+    expect(screen.getByTestId('day-summary')).toHaveTextContent('320')
+    expect(screen.getByTestId('kbju-totals')).toHaveTextContent('ккал')
   })
 
-  it('создаёт блюдо через форму', async () => {
+  it('убирает выбранную позицию из плана дня', async () => {
+    const user = userEvent.setup()
+    render(<App />)
+    await screen.findByTestId('dish-d-borscht')
+    await user.click(screen.getByTestId('toggle-plan-d-borscht'))
+    await waitFor(() => {
+      expect(screen.getByRole('status')).toHaveTextContent('План обновлён')
+    })
+    const removeBtn = screen.getByText('Убрать')
+    await user.click(removeBtn)
+    await waitFor(() => {
+      expect(screen.getByRole('status')).toHaveTextContent('убрана')
+    })
+    expect(screen.getByText(/пока ничего не выбрано/i)).toBeInTheDocument()
+  })
+
+  it('создаёт блюдо через форму каталога', async () => {
     const user = userEvent.setup()
     render(<App />)
     await screen.findByTestId('dish-form')
     await user.type(screen.getByTestId('dish-title-input'), 'Тестовый суп')
     await user.click(screen.getByTestId('dish-form-submit'))
     await waitFor(() => {
-      expect(screen.getByRole('status')).toHaveTextContent('Блюдо добавлено')
+      expect(screen.getByRole('status')).toHaveTextContent('добавлено')
     })
     expect(screen.getByText('Тестовый суп')).toBeInTheDocument()
   })
 
-  it('удаляет блюдо', async () => {
+  it('удаляет блюдо из каталога', async () => {
     const user = userEvent.setup()
     render(<App />)
-    await screen.findByTestId('dish-d-mon-soup')
-    await user.click(screen.getByTestId('delete-d-mon-soup'))
+    await screen.findByTestId('dish-d-borscht')
+    await user.click(screen.getByTestId('delete-d-borscht'))
     await waitFor(() => {
-      expect(screen.getByRole('status')).toHaveTextContent('Блюдо удалено')
+      expect(screen.getByRole('status')).toHaveTextContent('удалено')
     })
-    expect(screen.queryByTestId('dish-d-mon-soup')).not.toBeInTheDocument()
+    expect(screen.queryByTestId('dish-d-borscht')).not.toBeInTheDocument()
   })
 })

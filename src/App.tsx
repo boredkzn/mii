@@ -4,27 +4,30 @@ import {
   createDishRemote,
   deleteDishRemote,
   fetchDishes,
-  fetchPicks,
+  fetchPlanEntries,
   getDataMode,
-  togglePickRemote,
+  removeFromPlan,
+  togglePlanRemote,
   updateDishRemote,
 } from './api/menuApi'
 import { AuthPanel } from './components/AuthPanel'
-import { DayTabs } from './components/DayTabs'
+import { DatePicker } from './components/DatePicker'
 import { DishCard } from './components/DishCard'
 import { DishForm } from './components/DishForm'
 import { MenuFilters } from './components/MenuFilters'
-import { MENU, type Dish, type DishKind, type Weekday } from './data/menu'
+import { SelectedPanel } from './components/SelectedPanel'
+import { MENU, todayISO, type Dish, type DishKind, type PlanEntry } from './data/menu'
 import { toApiError } from './lib/apiErrors'
 import type { DishInput } from './types/menu'
-import { dishesForDay, filterDishes, sumPicked } from './utils/menuLogic'
+import { filterDishes, isDishPlannedOnDate, sumPlanMacros } from './utils/menuLogic'
 
 type LoadState = 'idle' | 'loading' | 'success' | 'error'
 
 export default function App() {
-  const [menu, setMenu] = useState<Dish[]>(MENU)
-  const [picked, setPicked] = useState<string[]>([])
-  const [day, setDay] = useState<Weekday>('mon')
+  const [catalog, setCatalog] = useState<Dish[]>(MENU)
+  const [plan, setPlan] = useState<PlanEntry[]>([])
+  const [planDate, setPlanDate] = useState(todayISO())
+  const [panelMode, setPanelMode] = useState<'selected-day' | 'all-dates'>('selected-day')
   const [kind, setKind] = useState<'all' | DishKind>('all')
   const [allergen, setAllergen] = useState('')
   const [loadState, setLoadState] = useState<LoadState>('idle')
@@ -37,12 +40,14 @@ export default function App() {
   })
   const [bootDone, setBootDone] = useState(false)
 
-  const dayDishes = useMemo(() => dishesForDay(menu, day), [menu, day])
   const visible = useMemo(
-    () => filterDishes(dayDishes, kind, allergen),
-    [dayDishes, kind, allergen],
+    () => filterDishes(catalog, kind, allergen),
+    [catalog, kind, allergen],
   )
-  const totals = useMemo(() => sumPicked(menu, picked), [menu, picked])
+  const dayTotals = useMemo(
+    () => sumPlanMacros(catalog, plan, planDate),
+    [catalog, plan, planDate],
+  )
   const mode = getDataMode()
   const needsAuth = mode === 'supabase' && !auth.user
   const canManage = mode === 'demo' || Boolean(auth.user)
@@ -59,10 +64,10 @@ export default function App() {
         const snap = await getAuthSnapshot()
         if (cancelled) return
         setAuth(snap)
-        const [list, picks] = await Promise.all([fetchDishes(), fetchPicks()])
+        const [list, entries] = await Promise.all([fetchDishes(), fetchPlanEntries()])
         if (cancelled) return
-        setMenu(list)
-        setPicked(picks)
+        setCatalog(list)
+        setPlan(entries)
         setLoadState('success')
       } catch (err) {
         if (cancelled) return
@@ -82,12 +87,12 @@ export default function App() {
   }, [])
 
   async function reloadAll() {
-    const [list, picks] = await Promise.all([fetchDishes(), fetchPicks()])
-    setMenu(list)
-    setPicked(picks)
+    const [list, entries] = await Promise.all([fetchDishes(), fetchPlanEntries()])
+    setCatalog(list)
+    setPlan(entries)
   }
 
-  async function handleToggle(dishId: string) {
+  async function handleTogglePlan(dishId: string) {
     if (needsAuth) {
       const msg = 'Требуется вход (401). Войдите или зарегистрируйтесь.'
       setLoadState('error')
@@ -97,10 +102,31 @@ export default function App() {
     setLoadState('loading')
     setBanner(null)
     try {
-      const next = await togglePickRemote(dishId)
-      setPicked(next)
+      const next = await togglePlanRemote(dishId, planDate)
+      setPlan(next)
       setLoadState('success')
-      setBanner('Выбор обновлён')
+      setBanner('План обновлён')
+    } catch (err) {
+      const apiErr = toApiError(err)
+      setLoadState('error')
+      setBanner(apiErr.message)
+    }
+  }
+
+  async function handleRemovePlan(entryId: string) {
+    if (needsAuth) {
+      const msg = 'Требуется вход (401). Войдите или зарегистрируйтесь.'
+      setLoadState('error')
+      setBanner(msg)
+      return
+    }
+    setLoadState('loading')
+    setBanner(null)
+    try {
+      const next = await removeFromPlan(entryId)
+      setPlan(next)
+      setLoadState('success')
+      setBanner('Позиция убрана из плана')
     } catch (err) {
       const apiErr = toApiError(err)
       setLoadState('error')
@@ -121,10 +147,10 @@ export default function App() {
       const next = editing
         ? await updateDishRemote(editing.id, input)
         : await createDishRemote(input)
-      setMenu(next)
+      setCatalog(next)
       setEditing(null)
       setLoadState('success')
-      setBanner(editing ? 'Блюдо обновлено' : 'Блюдо добавлено')
+      setBanner(editing ? 'Блюдо обновлено' : 'Блюдо добавлено в каталог')
     } catch (err) {
       const apiErr = toApiError(err)
       setLoadState('error')
@@ -144,11 +170,11 @@ export default function App() {
     setBanner(null)
     try {
       const next = await deleteDishRemote(dishId)
-      setMenu(next)
-      setPicked((prev) => prev.filter((id) => id !== dishId))
+      setCatalog(next)
+      setPlan((prev) => prev.filter((e) => e.dishId !== dishId))
       if (editing?.id === dishId) setEditing(null)
       setLoadState('success')
-      setBanner('Блюдо удалено')
+      setBanner('Блюдо удалено из каталога')
     } catch (err) {
       const apiErr = toApiError(err)
       setLoadState('error')
@@ -170,15 +196,15 @@ export default function App() {
   }
 
   return (
-    <div className="mx-auto flex min-h-screen w-full max-w-4xl flex-col gap-5 px-4 py-6 sm:px-6">
+    <div className="mx-auto flex min-h-screen w-full max-w-5xl flex-col gap-5 px-4 py-6 sm:px-6">
       <header className="rounded-3xl border border-[var(--mb-line)] bg-[var(--mb-forest)] px-5 py-6 text-[var(--mb-cream)] shadow-sm">
         <p className="text-xs uppercase tracking-[0.25em] text-[#b7d4c4]">
-          Столовая «Зелёный угол»
+          Планировщик еды · Суханова
         </p>
         <h1 className="mt-1 text-3xl font-bold sm:text-4xl">MenuBoard</h1>
         <p className="mt-2 max-w-2xl text-sm text-[#d7ebe0] sm:text-base">
-          Электронное меню на неделю: CRUD блюд, фильтры, аллергены и выбор на
-          обед — с Supabase или в demo-режиме.
+          Каталог блюд и план питания по календарю: КБЖУ, фильтры, CRUD и
+          Supabase — или demo без ключей.
         </p>
         <div className="mt-3 flex flex-wrap gap-3 text-xs text-[#9fbfae]">
           <p data-testid="load-state">Состояние: {loadState}</p>
@@ -215,7 +241,7 @@ export default function App() {
           role="alert"
           data-testid="auth-required"
         >
-          Backend подключён. Для чтения/записи меню войдите (RLS требует{' '}
+          Backend подключён. Для чтения/записи каталога и плана войдите (RLS требует{' '}
           <code>authenticated</code>).
         </div>
       )}
@@ -230,7 +256,27 @@ export default function App() {
         />
       )}
 
-      <DayTabs day={day} onChange={setDay} />
+      <DatePicker date={planDate} onChange={setPlanDate} />
+
+      <SelectedPanel
+        catalog={catalog}
+        plan={plan}
+        selectedDate={planDate}
+        mode={panelMode}
+        busy={loadState === 'loading'}
+        onRemove={handleRemovePlan}
+        onModeChange={setPanelMode}
+      />
+
+      <aside
+        className="rounded-2xl border border-[var(--mb-line)] bg-white/90 px-4 py-3 text-sm"
+        data-testid="day-summary"
+      >
+        На выбранную дату в плане: <strong>{dayTotals.calories}</strong> ккал · Б{' '}
+        <strong>{dayTotals.protein}</strong> · Ж <strong>{dayTotals.fat}</strong> · У{' '}
+        <strong>{dayTotals.carbs}</strong>
+      </aside>
+
       <MenuFilters
         kind={kind}
         allergen={allergen}
@@ -238,37 +284,35 @@ export default function App() {
         onAllergenChange={setAllergen}
       />
 
-      <aside
-        className="rounded-2xl border border-[var(--mb-line)] bg-white/90 px-4 py-3 text-sm"
-        data-testid="pick-summary"
-      >
-        В выборе: <strong>{picked.length}</strong> ·{' '}
-        <strong>{totals.price} ₽</strong> · <strong>{totals.calories} ккал</strong>
-      </aside>
-
-      {visible.length === 0 ? (
-        <div className="rounded-2xl border border-dashed border-[var(--mb-line)] bg-white/70 p-8 text-center text-slate-600">
-          На этот день с текущими фильтрами блюд нет.
-        </div>
-      ) : (
-        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-          {visible.map((dish) => (
-            <DishCard
-              key={dish.id}
-              dish={dish}
-              picked={picked.includes(dish.id)}
-              busy={loadState === 'loading'}
-              canManage={canManage}
-              onToggle={handleToggle}
-              onEdit={setEditing}
-              onDelete={handleDelete}
-            />
-          ))}
-        </div>
-      )}
+      <section>
+        <h2 className="mb-3 text-sm font-semibold uppercase tracking-wide text-[var(--mb-forest)]">
+          Каталог блюд
+        </h2>
+        {visible.length === 0 ? (
+          <div className="rounded-2xl border border-dashed border-[var(--mb-line)] bg-white/70 p-8 text-center text-slate-600">
+            В каталоге с текущими фильтрами блюд нет.
+          </div>
+        ) : (
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+            {visible.map((dish) => (
+              <DishCard
+                key={dish.id}
+                dish={dish}
+                planned={isDishPlannedOnDate(plan, dish.id, planDate)}
+                busy={loadState === 'loading'}
+                canManage={canManage}
+                onTogglePlan={handleTogglePlan}
+                onEdit={setEditing}
+                onDelete={handleDelete}
+              />
+            ))}
+          </div>
+        )}
+      </section>
 
       <footer className="mt-auto border-t border-[var(--mb-line)] pt-4 text-xs text-slate-500">
-        ДЗ5 · Суханова Ксения Львовна · React + Vite + Tailwind + Supabase
+        ДЗ5 · Суханова Ксения Львовна · планировщик еды · React + Vite + Tailwind +
+        Supabase
         {mode === 'demo' ? ' · demo без .env' : ' · live API'}
       </footer>
     </div>

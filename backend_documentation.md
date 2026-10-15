@@ -1,4 +1,4 @@
-# Backend documentation — MenuBoard (ДЗ5)
+# Backend documentation — MenuBoard (планировщик еды · ДЗ5)
 
 **Студент:** Ксения Суханова  
 **Стек:** React (Vite) + Supabase (PostgreSQL, Auth, PostgREST, RLS)  
@@ -13,84 +13,62 @@ Browser (Vite/React)
     ▼
 Supabase Cloud (отдельный проект для MenuBoard)
   ├─ Auth (email/password)
-  ├─ PostgREST → PostgreSQL (dishes, menu_picks, profiles)
+  ├─ PostgREST → PostgreSQL (dishes, plan_entries, profiles)
   └─ RLS policies (только authenticated)
 ```
 
-Выбран **вариант A: Supabase BaaS** (без self-hosted Postgres/Docker/VPS):
-
-| Критерий | Supabase | Self-hosted |
-|----------|----------|-------------|
-| Время старта | минуты | часы (VPS, Docker, TLS) |
-| Auth + RLS | из коробки | писать middleware |
-| PostgREST API | автогенерация | отдельный сервис |
-| Стоимость для ДЗ | Free tier | аренда сервера |
-| CORS | по умолчанию ок | настраивать |
+Выбран **вариант A: Supabase BaaS** (без self-hosted Postgres/Docker/VPS).
 
 ## 2. Схема БД
 
-Миграция: `supabase/migrations/001_init.sql`  
-Домен — **меню столовой**, не ключи кабинетов.
+| Файл | Роль |
+|------|------|
+| `supabase/migrations/001_init.sql` | стартовая схема (исторический canteen) |
+| `supabase/migrations/002_meal_planner.sql` | **meal planner** — убирает day/price, добавляет БЖУ + `plan_entries` |
+
+**Итоговый домен — планировщик еды**, не столовая и не ключи кабинетов.
 
 | Таблица | Назначение |
 |---------|------------|
 | `profiles` | профиль пользователя (`auth.users`) |
-| `dishes` | блюда: день, тип, калории, аллергены, цена |
-| `menu_picks` | выбор блюд пользователем (`user_id` + `dish_id`) |
+| `dishes` | каталог: `kind`, `calories`, `protein`, `fat`, `carbs`, `allergens` (**без `day`, без `price_rub`**) |
+| `plan_entries` | план: `user_id` + `dish_id` + **`plan_date`** (+ опц. `meal_slot`) |
 
-Связи: `menu_picks.dish_id → dishes.id`, `profiles.id → auth.users.id`, `menu_picks.user_id → auth.users.id`.
+Связи: `plan_entries.dish_id → dishes.id`, `profiles.id → auth.users.id`, `plan_entries.user_id → auth.users.id`.
+
+### Миграция
+
+1. **Новый проект:** Run `001_init.sql`, затем **обязательно** `002_meal_planner.sql`.  
+2. **Уже выполнен старый 001:** Run только `002_meal_planner.sql` (breaking: drop `day`/`price_rub`/`menu_picks`).
 
 ## 3. Развёртывание Supabase
 
-**Важно:** создайте **новый** проект Supabase для Сухановой / MenuBoard.  
-Не переиспользуйте URL и anon key KeyCabinet.
+**Важно:** новый проект Supabase для Сухановой / MenuBoard. Не KeyCabinet.
 
-1. Зарегистрироваться на [https://supabase.com](https://supabase.com), **New project**.
-2. Дождаться готовности БД.
-3. **SQL Editor** → вставить содержимое `001_init.sql` → **Run**.
-4. **Authentication → Providers → Email**: включить; Confirm email можно выключить для учёбы.
-5. **Authentication → URL Configuration**: Site URL = `http://localhost:5173`.
-6. **Project Settings → API**: скопировать Project URL и `anon` `public` key.
-7. В корне: заполнить `.env.local` (вместо `PASTE_…`).
-8. `npm install && npm run dev` → Регистрация в UI.
+1. [https://supabase.com](https://supabase.com) → **New project**.  
+2. SQL Editor → `001` → Run → `002` → Run.  
+3. Auth Email; Confirm email можно выключить для учёбы.  
+4. Site URL = `http://localhost:5173` (+ Vercel URL).  
+5. Скопировать URL и anon key в `.env.local`.  
 
-Без реальных ключей приложение работает в **demo-режиме**.
-
-### Что сделать вручную (логин)
-
-Агент не создаёт облачный проект за студента. Нужно:
-
-1. Войти в Supabase Dashboard.  
-2. Создать проект.  
-3. Выполнить SQL-миграцию.  
-4. Вставить URL и anon key в `.env.local`.  
-5. Зарегистрировать пользователя через UI («Регистрация»).
+Без реальных ключей — **demo-режим**.
 
 ## 4. API (PostgREST)
 
 Базовый URL: `{VITE_SUPABASE_URL}/rest/v1/`  
-Заголовки: `apikey: <anon>`, `Authorization: Bearer <access_token>`, `Content-Type: application/json`.
+Заголовки: `apikey`, `Authorization: Bearer <access_token>`.
 
-### CRUD (минимум 3+ операции)
+| Операция | Метод | Endpoint |
+|----------|-------|----------|
+| Read catalog | `GET` | `/dishes?select=*&order=kind` |
+| Create dish | `POST` | `/dishes` |
+| Update dish | `PATCH` | `/dishes?id=eq.…` |
+| Delete dish | `DELETE` | `/dishes?id=eq.…` |
+| Read plan | `GET` | `/plan_entries?select=*&order=plan_date` |
+| Add to plan | `POST` | `/plan_entries` |
+| Remove from plan | `DELETE` | `/plan_entries?id=eq.…` |
 
-| Операция | Метод | Endpoint | Описание |
-|----------|-------|----------|----------|
-| Read | `GET` | `/dishes?select=*&order=day` | список блюд |
-| Create | `POST` | `/dishes` | добавить блюдо |
-| Update | `PATCH` | `/dishes?id=eq.d-mon-soup` | изменить блюдо |
-| Delete | `DELETE` | `/dishes?id=eq.…` | удалить блюдо |
-| Create pick | `POST` | `/menu_picks` | «Возьму» |
-| Delete pick | `DELETE` | `/menu_picks?id=eq.…` | убрать из выбора |
-
-Пример чтения:
-
-```bash
-curl "$VITE_SUPABASE_URL/rest/v1/dishes?select=id,title,day,kind,price_rub&order=day" \
-  -H "apikey: $VITE_SUPABASE_ANON_KEY" \
-  -H "Authorization: Bearer $ACCESS_TOKEN"
-```
-
-Пример создания:
+Пример создания блюда:
 
 ```bash
 curl -X POST "$VITE_SUPABASE_URL/rest/v1/dishes" \
@@ -98,51 +76,30 @@ curl -X POST "$VITE_SUPABASE_URL/rest/v1/dishes" \
   -H "Authorization: Bearer $ACCESS_TOKEN" \
   -H "Content-Type: application/json" \
   -H "Prefer: return=representation" \
-  -d '{"id":"d-fri-soup","title":"Окрошка","kind":"soup","day":"fri","calories":200,"allergens":[],"price_rub":100}'
+  -d '{"id":"d-okroshka","title":"Окрошка","kind":"soup","calories":200,"protein":8,"fat":6,"carbs":22,"allergens":[]}'
 ```
 
-Клиентский слой: `src/api/menuApi.ts`, `src/api/authApi.ts`.
+Клиент: `src/api/menuApi.ts`, `src/api/authApi.ts`.
 
 ## 5. Безопасность
 
-- **Auth:** email + password (Supabase Auth).
-- **RLS:** на всех таблицах; CRUD по `dishes` только для `authenticated`; `menu_picks` — только свои строки (`auth.uid() = user_id`).
-- **Секреты:** только `anon` key на клиенте; `service_role` не используется и не коммитится.
-- **CORS:** стандартный для Supabase.
-- **`.env` / `.env.local` в `.gitignore`**.
+- **Auth:** email + password.  
+- **RLS:** CRUD `dishes` для `authenticated`; `plan_entries` — только свои строки (`auth.uid() = user_id`).  
+- На клиенте только `anon` key; `service_role` не коммитится.  
+- `.env` / `.env.local` в `.gitignore`.
 
-Без сессии запросы к таблицам получают **401/403** — UI показывает баннеры.
+## 6. Ошибки
 
-## 6. Обработка ошибок
+`src/lib/apiErrors.ts`: 401 / 403 / 500 / сеть / валидация → баннеры в UI.
 
-`src/lib/apiErrors.ts` нормализует:
-
-| Код | UI |
-|-----|-----|
-| 401 | «Требуется вход…» |
-| 403 | «Доступ запрещён… RLS…» |
-| 500 | «Ошибка сервера… Logs в Dashboard» |
-| сеть | «Нет связи с сервером…» |
-| валидация | текст правила (пустое название и т.п.) |
-
-Логи: **Supabase → Logs → API / Postgres / Auth**.
-
-## 7. Тестирование
+## 7. Тесты
 
 ```bash
 npm test
 ```
 
-25 юнит-тестов **без live Supabase** (demo + mock). После заполнения `.env.local` — ручная e2e проверка в браузере.
+Юнит-тесты без live Supabase (demo + mock). После `.env.local` — ручная проверка в браузере.
 
-## 8. Деплой фронта (Vercel)
+## 8. Деплой
 
-См. [`DEPLOY_VERCEL.md`](./DEPLOY_VERCEL.md).
-
-## 9. Процесс разработки с AI
-
-1. Описание сущностей MenuBoard (блюда, дни, выбор) → генерация SQL + RLS.  
-2. Клиент `@supabase/supabase-js` и CRUD в `menuApi`.  
-3. Demo-fallback и обработка 401/403/500.  
-4. Vitest (API, ошибки, UI).  
-5. Документация и отчёт ДЗ5 (автор — Суханова).
+См. [`DEPLOY_VERCEL.md`](./DEPLOY_VERCEL.md). После схемы meal planner: Redeploy Vercel + убедиться, что на Supabase выполнен **002**.

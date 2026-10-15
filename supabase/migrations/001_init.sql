@@ -1,6 +1,8 @@
 -- MenuBoard · ДЗ5 · начальная схема (PostgreSQL / Supabase)
--- Домен: электронное меню столовой (не KeyCabinet)
--- Выполнить в Supabase Dashboard → SQL Editor → New query → Run
+-- ИСТОРИЧЕСКИЙ файл (canteen: day / price_rub / menu_picks).
+-- После выполнения 001 ОБЯЗАТЕЛЬНО запустите 002_meal_planner.sql —
+-- он переводит домен на планировщик еды (каталог + plan_entries по датам).
+-- Не KeyCabinet. Выполнить в Supabase Dashboard → SQL Editor → Run.
 
 -- ---------------------------------------------------------------------------
 -- 1. Таблицы

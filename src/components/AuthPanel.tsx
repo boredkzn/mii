@@ -27,8 +27,8 @@ export function AuthPanel({ auth, onAuthChange, onError }: Props) {
         <strong>Demo-режим:</strong> нет рабочих{' '}
         <code className="text-xs">VITE_SUPABASE_URL</code> /{' '}
         <code className="text-xs">VITE_SUPABASE_ANON_KEY</code>. Данные в памяти;
-        создайте <strong>отдельный</strong> проект Supabase для MenuBoard и
-        вставьте ключи в <code className="text-xs">.env.local</code>.
+        создайте <strong>отдельный</strong> проект Supabase для планировщика
+        MenuBoard и вставьте ключи в <code className="text-xs">.env.local</code>.
       </div>
     )
   }

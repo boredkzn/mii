@@ -2,13 +2,15 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { MENU } from '../data/menu'
 import { ApiError } from '../lib/apiErrors'
 import {
+  addToPlan,
   createDishRemote,
   deleteDishRemote,
   fetchDishes,
-  fetchPicks,
+  fetchPlanEntries,
   getDataMode,
+  removeFromPlan,
   resetDemoMenu,
-  togglePickRemote,
+  togglePlanRemote,
   updateDishRemote,
 } from './menuApi'
 
@@ -26,20 +28,25 @@ describe('menuApi (demo / без live Supabase)', () => {
     expect(getDataMode()).toBe('demo')
   })
 
-  it('fetchDishes возвращает seed', async () => {
+  it('fetchDishes возвращает seed каталога без day/price', async () => {
     const dishes = await fetchDishes()
     expect(dishes).toHaveLength(MENU.length)
-    expect(dishes.find((d) => d.id === 'd-mon-soup')?.title).toMatch(/Борщ/)
+    const borscht = dishes.find((d) => d.id === 'd-borscht')
+    expect(borscht?.title).toMatch(/Борщ/)
+    expect(borscht).not.toHaveProperty('priceRub')
+    expect(borscht).not.toHaveProperty('day')
+    expect(borscht?.protein).toBeGreaterThan(0)
   })
 
-  it('createDishRemote добавляет блюдо', async () => {
+  it('createDishRemote добавляет блюдо в каталог', async () => {
     const next = await createDishRemote({
       title: 'Окрошка',
       kind: 'soup',
-      day: 'fri',
       calories: 200,
+      protein: 8,
+      fat: 6,
+      carbs: 22,
       allergens: [],
-      priceRub: 100,
     })
     expect(next.some((d) => d.title === 'Окрошка')).toBe(true)
   })
@@ -49,41 +56,53 @@ describe('menuApi (demo / без live Supabase)', () => {
       createDishRemote({
         title: '  ',
         kind: 'soup',
-        day: 'mon',
         calories: 10,
+        protein: 0,
+        fat: 0,
+        carbs: 0,
         allergens: [],
-        priceRub: 10,
       }),
     ).rejects.toBeInstanceOf(ApiError)
   })
 
   it('updateDishRemote обновляет блюдо', async () => {
-    const next = await updateDishRemote('d-mon-soup', {
+    const next = await updateDishRemote('d-borscht', {
       title: 'Борщ постный',
       kind: 'soup',
-      day: 'mon',
       calories: 280,
+      protein: 10,
+      fat: 8,
+      carbs: 30,
       allergens: [],
-      priceRub: 110,
     })
-    expect(next.find((d) => d.id === 'd-mon-soup')?.title).toBe('Борщ постный')
+    expect(next.find((d) => d.id === 'd-borscht')?.title).toBe('Борщ постный')
   })
 
   it('deleteDishRemote удаляет блюдо', async () => {
-    const next = await deleteDishRemote('d-fri-drink')
-    expect(next.find((d) => d.id === 'd-fri-drink')).toBeUndefined()
+    const next = await deleteDishRemote('d-cranberry')
+    expect(next.find((d) => d.id === 'd-cranberry')).toBeUndefined()
   })
 
   it('deleteDishRemote ошибка если нет блюда', async () => {
     await expect(deleteDishRemote('missing')).rejects.toThrow('не найдено')
   })
 
-  it('togglePickRemote добавляет и убирает выбор', async () => {
-    let picks = await togglePickRemote('d-mon-soup')
-    expect(picks).toContain('d-mon-soup')
-    picks = await togglePickRemote('d-mon-soup')
-    expect(picks).not.toContain('d-mon-soup')
-    expect(await fetchPicks()).toEqual(picks)
+  it('addToPlan / removeFromPlan работают по дате', async () => {
+    let plan = await addToPlan('d-borscht', '2026-10-15')
+    expect(plan.some((e) => e.dishId === 'd-borscht' && e.planDate === '2026-10-15')).toBe(
+      true,
+    )
+    const entryId = plan[0].id
+    plan = await removeFromPlan(entryId)
+    expect(plan).toHaveLength(0)
+    expect(await fetchPlanEntries()).toEqual([])
+  })
+
+  it('togglePlanRemote добавляет и убирает позицию на дату', async () => {
+    let plan = await togglePlanRemote('d-borscht', '2026-10-15')
+    expect(plan.some((e) => e.dishId === 'd-borscht')).toBe(true)
+    plan = await togglePlanRemote('d-borscht', '2026-10-15')
+    expect(plan.some((e) => e.dishId === 'd-borscht')).toBe(false)
   })
 })
 
@@ -95,13 +114,14 @@ describe('menuApi с мок-клиентом Supabase', () => {
   it('fetchDishes читает из from().select()', async () => {
     const rows = [
       {
-        id: 'd-mon-soup',
+        id: 'd-borscht',
         title: 'Борщ',
         kind: 'soup' as const,
-        day: 'mon' as const,
         calories: 320,
+        protein: 12,
+        fat: 14,
+        carbs: 32,
         allergens: ['молоко'],
-        price_rub: 120,
       },
     ]
 
@@ -118,8 +138,8 @@ describe('menuApi с мок-клиентом Supabase', () => {
     const mod = await import('./menuApi')
     const dishes = await mod.fetchDishes()
     expect(from).toHaveBeenCalledWith('dishes')
-    expect(dishes[0].priceRub).toBe(120)
-    expect(dishes[0].id).toBe('d-mon-soup')
+    expect(dishes[0].protein).toBe(12)
+    expect(dishes[0].id).toBe('d-borscht')
   })
 
   it('пробрасывает ошибку PostgREST как ApiError 403', async () => {
