@@ -1,0 +1,19 @@
+# Dependencies & build
+node_modules/
+dist/
+coverage/
+
+# Env / secrets (never commit)
+.env
+.env.local
+.env.*.local
+*.local
+
+# IDE / OS
+.idea/
+.vscode/
+.DS_Store
+*.log
+
+# Vercel
+.vercel
